@@ -1,0 +1,829 @@
+---
+title: "How Has Air Pollution Been Impacted By COVID Restrictions in Canada"
+author: "Vincent Tang"
+date: '2022-12-12'
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+```{r cars, echo = FALSE, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(lubridate)
+library(broom)
+library(vtable)
+CovidData <- read.csv("WHO-COVID-19-global-data.csv") %>% filter(Country == "Canada") %>% mutate(date = as_date(ï..Date_reported)) %>% select(date,Country,Cumulative_cases)
+
+Can_Pop <- read.csv("Canadian_Cities.csv")
+Cities <- Can_Pop$city
+
+Regression <- function(data){
+  return_data <- data %>% lm(formula = Pollutants ~ Cases + Price + Trips)
+  return(return_data)
+}
+
+LRegression <- function(data){
+  return_data <- data %>% lm(formula = log(Pollutants) ~ Cases + Price + Trips)
+  return(return_data)
+}
+
+star_extract <- function(data){
+  signs <- data$coefficients[ , 4]
+  stars <- NA
+  stars[signs < 0.1] <- "."
+  stars[signs < 0.05] <- "*"
+  stars[signs < 0.01] <- "**"
+  stars[signs < 0.001] <- "***"
+  stars[is.na(stars)] <- ""
+  
+  return(stars)
+}
+
+star_extract2 <- function(data){
+  signs <- data %>% tidy() %>% filter(term == "Treated:After_Treatment") %>% select(p.value)
+  stars <- NA
+  stars[signs < 0.1] <- "."
+  stars[signs < 0.05] <- "*"
+  stars[signs < 0.01] <- "**"
+  stars[signs < 0.001] <- "***"
+  stars[is.na(stars)] <- ""
+  
+  return(stars[1])
+}
+
+data_prep <- function(data){
+  data[is.na(data)] <- 0
+  data[data == -999] <- 0
+  
+  return_data <- data %>% mutate(date = mdy(Date..Date)) %>% mutate(Daily_Sum = H01..H01 + H02..H02 + H03..H03 + H04..H04 + H05..H05 + H06..H06 + H07..H07 + H08..H08 + H09..H09 + H10..H10 + H11..H11 + H12..H12 + H13..H13 + H14..H14 + H15..H15 + H16..H16 + H17..H17 + H18..H18 + H19..H19 + H20..H20 + H21..H21 + H22..H22 + H23..H23 + H24..H24) %>% mutate(Cumulative_cases = 0) %>% group_by(date) %>% summarise(Pollutants = sum(Daily_Sum),Cases = mean(Cumulative_cases),) %>% mutate(Treated = 0) %>% mutate(Year = substring(year(date),3,4)) %>% mutate(Month = month(date)) %>% mutate(Day = day(date)) %>% mutate(After_Treatment = if_else(Month==1 & Day<=25,0,1))
+  
+  return_data[is.na(return_data)] <- 0
+  return(return_data)
+}
+
+data_prep2 <- function(data){
+  data[is.na(data)] <- 0
+  data[data == -999] <- 0
+  
+  return_data <- data %>% mutate(date = mdy(Date..Date)) %>% mutate(Daily_Sum = H01..H01 + H02..H02 + H03..H03 + H04..H04 + H05..H05 + H06..H06 + H07..H07 + H08..H08 + H09..H09 + H10..H10 + H11..H11 + H12..H12 + H13..H13 + H14..H14 + H15..H15 + H16..H16 + H17..H17 + H18..H18 + H19..H19 + H20..H20 + H21..H21 + H22..H22 + H23..H23 + H24..H24) %>% left_join(CovidData, by = "date") %>% group_by(date) %>% summarise(Pollutants = sum(Daily_Sum),Cases = mean(Cumulative_cases)) %>% mutate(Treated = 1) %>% mutate(Year = substring(year(date),3,4)) %>% mutate(Month = month(date)) %>% mutate(Day = day(date)) %>% mutate(After_Treatment = if_else(Month==1 & Day<=25,0,1))
+  
+  return_data[is.na(return_data)] <- 0
+  return(return_data)
+}
+
+urban <- function(data){
+  return(data %>% filter(City..Ville %in% Cities))
+}
+
+rural <- function(data){
+  return(data %>% filter(!(City..Ville %in% Cities)))
+}
+
+PollCO_2018 <- data_prep(urban(read.csv("CO_2018(Edited).csv"))) %>% mutate(Rural = FALSE)
+PollO3_2018 <- data_prep(urban(read.csv("O3_2018(Edited).csv"))) %>% mutate(Rural = FALSE)
+PollPM10_2018 <- data_prep(urban(read.csv("PM10_2018(Edited).csv"))) %>% mutate(Rural = FALSE)
+PollPM25_2018 <- read.csv("PM25_2018(Edited).csv") 
+PollPM25_2018 <- data_prep(urban(PollPM25_2018[-c(2)])) %>% mutate(Rural = FALSE)
+PollSO2_2018 <- data_prep(urban(read.csv("SO2_2018(Edited).csv"))) %>% mutate(Rural = FALSE)
+PollNO2_2018 <- data_prep(urban(read.csv("NO2_2018(Edited).csv"))) %>% mutate(Rural = FALSE)
+
+PollCO_2019 <- data_prep(urban(read.csv("CO_2019(Edited).csv"))) %>% mutate(Rural = FALSE)
+PollO3_2019 <- data_prep(urban(read.csv("O3_2019(Edited).csv"))) %>% mutate(Rural = FALSE)
+PollPM10_2019 <- data_prep(urban(read.csv("PM10_2019(Edited).csv"))) %>% mutate(Rural = FALSE)
+PollPM25_2019 <- read.csv("PM25_2019(Edited).csv") 
+PollPM25_2019 <- data_prep(urban(PollPM25_2019[-c(2)])) %>% mutate(Rural = FALSE)
+PollSO2_2019 <- data_prep(urban(read.csv("SO2_2019(Edited).csv"))) %>% mutate(Rural = FALSE)
+PollNO2_2019 <- data_prep(urban(read.csv("NO2_2019(Edited).csv"))) %>% mutate(Rural = FALSE)
+
+PollCO_2020 <- data_prep2(urban(read.csv("CO_2020(Edited).csv"))) %>% mutate(Rural = FALSE)
+PollO3_2020 <- data_prep2(urban(read.csv("O3_2020(Edited).csv"))) %>% mutate(Rural = FALSE)
+PollPM10_2020 <- data_prep2(urban(read.csv("PM10_2020(Edited).csv"))) %>% mutate(Rural = FALSE)
+PollPM25_2020 <- read.csv("PM25_2020(Edited).csv")
+PollPM25_2020 <- data_prep2(urban(PollPM25_2020[-c(2)])) %>% mutate(Rural = FALSE)
+PollSO2_2020 <- data_prep2(urban(read.csv("SO2_2020(Edited).csv"))) %>% mutate(Rural = FALSE)
+PollNO2_2020 <- data_prep2(urban(read.csv("NO2_2020(Edited).csv"))) %>% mutate(Rural = FALSE)
+
+PollCO_2018r <- data_prep(rural(read.csv("CO_2018(Edited).csv"))) %>% mutate(Rural = TRUE)
+PollO3_2018r <- data_prep(rural(read.csv("O3_2018(Edited).csv"))) %>% mutate(Rural = TRUE)
+PollPM10_2018r <- data_prep(rural(read.csv("PM10_2018(Edited).csv"))) %>% mutate(Rural = TRUE)
+PollPM25_2018r <- read.csv("PM25_2018(Edited).csv") 
+PollPM25_2018r <- data_prep(rural(PollPM25_2018r[-c(2)])) %>% mutate(Rural = TRUE)
+PollSO2_2018r <- data_prep(rural(read.csv("SO2_2018(Edited).csv"))) %>% mutate(Rural = TRUE)
+PollNO2_2018r <- data_prep(rural(read.csv("NO2_2018(Edited).csv"))) %>% mutate(Rural = TRUE)
+
+PollCO_2019r <- data_prep(rural(read.csv("CO_2019(Edited).csv"))) %>% mutate(Rural = TRUE)
+PollO3_2019r <- data_prep(rural(read.csv("O3_2019(Edited).csv"))) %>% mutate(Rural = TRUE)
+PollPM10_2019r <- data_prep(rural(read.csv("PM10_2019(Edited).csv"))) %>% mutate(Rural = TRUE)
+PollPM25_2019r <- read.csv("PM25_2019(Edited).csv") 
+PollPM25_2019r <- data_prep(rural(PollPM25_2019r[-c(2)])) %>% mutate(Rural = TRUE)
+PollSO2_2019r <- data_prep(rural(read.csv("SO2_2019(Edited).csv"))) %>% mutate(Rural = TRUE)
+PollNO2_2019r <- data_prep(rural(read.csv("NO2_2019(Edited).csv"))) %>% mutate(Rural = TRUE)
+
+PollCO_2020r <- data_prep2(rural(read.csv("CO_2020(Edited).csv"))) %>% mutate(Rural = TRUE)
+PollO3_2020r <- data_prep2(rural(read.csv("O3_2020(Edited).csv"))) %>% mutate(Rural = TRUE)
+PollPM10_2020r <- data_prep2(rural(read.csv("PM10_2020(Edited).csv"))) %>% mutate(Rural = TRUE)
+PollPM25_2020r <- read.csv("PM25_2020(Edited).csv")
+PollPM25_2020r <- data_prep2(rural(PollPM25_2020r[-c(2)])) %>% mutate(Rural = TRUE)
+PollSO2_2020r <- data_prep2(rural(read.csv("SO2_2020(Edited).csv"))) %>% mutate(Rural = TRUE)
+PollNO2_2020r <- data_prep2(rural(read.csv("NO2_2020(Edited).csv"))) %>% mutate(Rural = TRUE)
+
+data_prep3 <- function(data){
+  month_list <- c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+  
+  return_data <- data %>% mutate(Date = ï..Date) %>% mutate(Year = substring(Date,1,2)) %>% mutate(Month = match(substring(Date,4,6),month_list))
+}
+
+month_length <- c(31,28,31,30,31,30,31,31,30,31,30,31)
+TransitStats <- data_prep3(read.csv("Urban-Transit-Stats(Edited).csv")) %>% mutate(Trips = Total.passenger.trips/if_else(Month == 2 & Year == 20,29,month_length[Month])) %>% select(Date,Year,Month,Trips)
+GasPrices <- data_prep3(read.csv("Gasoline-Price-Stats(Edited).csv")) %>% mutate(Price = Canada) %>% select(Date,Year,Month,Price)
+
+data_prep4 <- function(data){
+  
+  return_data <- data %>% left_join(TransitStats,by = c('Year' = 'Year','Month' = 'Month')) %>% left_join(GasPrices,by = c('Year' = 'Year','Month' = 'Month')) 
+}
+
+Regression_prep <- function(data){
+  return_data <- data %>% group_by(Month,Year) %>% summarise(po = mean(Pollutants),c = mean(Cases),t = mean(Trips), pr = mean(Price))
+  
+  colnames(return_data) <- c("Month","Year","Pollutants","Cases","Trips","Price")
+  
+  return(return_data)
+}
+
+DiD_prep <- function(data){
+  return_data <- data %>% group_by(Month,Year) %>% summarise(po = mean(Pollutants),c = mean(Cases),t = mean(Trips),pr = mean(Price),tre = mean(Treated)) %>% mutate(aftre = if_else(Month == 1, 0, 1))
+  
+  colnames(return_data) <- c("Month","Year","Pollutants","Cases","Trips","Price","Treated","After_Treatment")
+  
+  return(return_data)
+}
+
+PollCO <- data_prep4(rbind(PollCO_2018,PollCO_2019,PollCO_2020))
+PollO3 <- data_prep4(rbind(PollO3_2018,PollO3_2019,PollO3_2020))
+PollPM10 <- data_prep4(rbind(PollPM10_2018,PollPM10_2019,PollPM10_2020))
+PollPM25 <- data_prep4(rbind(PollPM25_2018,PollPM25_2019,PollPM25_2020))
+PollSO2 <- data_prep4(rbind(PollSO2_2018,PollSO2_2019,PollSO2_2020))
+PollNO2 <- data_prep4(rbind(PollNO2_2018,PollNO2_2019,PollNO2_2020))
+
+bindco <- select(PollCO,date,Pollutants,Cases,Treated,Year,Month,Day,After_Treatment,Rural)
+bindo3 <- select(PollO3,date,Pollutants,Cases,Treated,Year,Month,Day,After_Treatment,Rural)
+bindpm10 <- select(PollPM10,date,Pollutants,Cases,Treated,Year,Month,Day,After_Treatment,Rural)
+bindpm25 <- select(PollPM25,date,Pollutants,Cases,Treated,Year,Month,Day,After_Treatment,Rural)
+bindso2 <- select(PollSO2,date,Pollutants,Cases,Treated,Year,Month,Day,After_Treatment,Rural)
+bindno2 <- select(PollNO2,date,Pollutants,Cases,Treated,Year,Month,Day,After_Treatment,Rural)
+
+PollCOr <- select(rbind(rbind(PollCO_2018r,PollCO_2019r,PollCO_2020r),bindco),date,Pollutants,Rural,Cases,Treated,After_Treatment)
+RuralCo <- PollCOr %>% group_by(Rural) %>% summarise(Average = mean(Pollutants)) 
+PollO3r <- select(rbind(rbind(PollO3_2018r,PollO3_2019r,PollO3_2020r),bindo3),date,Pollutants,Rural,Cases,Treated,After_Treatment)
+RuralO3 <- PollO3r %>% group_by(Rural) %>% summarise(Average = mean(Pollutants))
+PollPM10r <- select(rbind(rbind(PollPM10_2018r,PollPM10_2019r,PollPM10_2020r),bindpm10),date,Pollutants,Rural,Cases,Treated,After_Treatment)
+RuralPM10 <- PollPM10r %>% group_by(Rural) %>% summarise(Average = mean(Pollutants))
+PollPM25r <- select(rbind(rbind(PollPM25_2018r,PollPM25_2019r,PollPM25_2020r),bindpm25),date,Pollutants,Rural,Cases,Treated,After_Treatment)
+RuralPM25 <- PollPM25r %>% group_by(Rural) %>% summarise(Average = mean(Pollutants))
+PollSO2r <- select(rbind(rbind(PollSO2_2018r,PollSO2_2019r,PollSO2_2020r),bindso2),date,Pollutants,Rural,Cases,Treated,After_Treatment)
+RuralSO2 <- PollSO2r %>% group_by(Rural) %>% summarise(Average = mean(Pollutants))
+PollNO2r <- select(rbind(rbind(PollNO2_2018r,PollNO2_2019r,PollNO2_2020r),bindno2),date,Pollutants,Rural,Cases,Treated,After_Treatment)
+RuralNO2 <- PollNO2r %>% group_by(Rural) %>% summarise(Average = mean(Pollutants))
+
+Rural_Diff <- function(data){
+  return(data$Average[2] - data$Average[1])
+}
+
+Rural_Perc <- function(data){
+  return(((data$Average[2]/data$Average[1])-1)*100)
+}
+
+Rural_Emissions <- data.frame(Pollutant = c("CO","O3","PM10","PM2.5","SO2","NO2"),Rural = c(RuralCo$Average[2],RuralO3$Average[2],RuralPM10$Average[2],RuralPM25$Average[2],RuralSO2$Average[2],RuralNO2$Average[2]),Urban = c(RuralCo$Average[1],RuralO3$Average[1],RuralPM10$Average[1],RuralPM25$Average[1],RuralSO2$Average[1],RuralNO2$Average[1]),Rural_Difference = c(Rural_Diff(RuralCo),Rural_Diff(RuralO3),Rural_Diff(RuralPM10),Rural_Diff(RuralPM25),Rural_Diff(RuralSO2),Rural_Diff(RuralNO2)),Rural_Percentage_Diff = c(Rural_Perc(RuralCo),Rural_Perc(RuralO3),Rural_Perc(RuralPM10),Rural_Perc(RuralPM25),Rural_Perc(RuralSO2),Rural_Perc(RuralNO2)))
+
+DiD_Regression = function(data){
+  subset1 <- data %>% filter(Treated == 1 & After_Treatment == 1)
+  subset2 <- data %>% filter(Treated == 1 & After_Treatment == 0)
+  subset3 <- data %>% filter(Treated == 0 & After_Treatment == 1)
+  subset4 <- data %>% filter(Treated == 0 & After_Treatment == 0)
+  
+  r <- lm(formula = Pollutants ~ Treated + After_Treatment + (Treated * After_Treatment) + (Price + Trips), data = data)
+  
+  p1 <- mean(predict(r,subset1))
+  p2 <- mean(predict(r,subset2))
+  p3 <- mean(predict(r,subset3))
+  p4 <- mean(predict(r,subset4))
+  
+  estimate <- ((p1 - p2) - (p3 - p4))
+}
+
+DRegression1 <- function(data){
+  return_data <- data %>% lm(formula = Pollutants ~ Treated + After_Treatment + (Treated * After_Treatment) + (Price + Trips))
+  return(return_data)
+}
+
+DiD_Regression2 = function(data){
+  subset1 <- data %>% filter(Treated == 1 & After_Treatment == 1)
+  subset2 <- data %>% filter(Treated == 1 & After_Treatment == 0)
+  subset3 <- data %>% filter(Treated == 0 & After_Treatment == 1)
+  subset4 <- data %>% filter(Treated == 0 & After_Treatment == 0)
+  
+  r <- lm(formula = Trips ~ Treated + After_Treatment + (Treated * After_Treatment) + (Cases + Price), data = data)
+  
+  p1 <- mean(predict(r,subset1))
+  p2 <- mean(predict(r,subset2))
+  p3 <- mean(predict(r,subset3))
+  p4 <- mean(predict(r,subset4))
+  
+  estimate <- ((p1 - p2) - (p3 - p4))
+}
+
+DRegression2 <- function(data){
+  return_data <- data %>% lm(formula = Trips ~ Treated + After_Treatment + (Treated * After_Treatment) + (Cases + Price))
+  return(return_data)
+}
+
+DiD_Regression3 = function(data){
+  subset1 <- data %>% filter(Treated == 1 & After_Treatment == 1)
+  subset2 <- data %>% filter(Treated == 1 & After_Treatment == 0)
+  subset3 <- data %>% filter(Treated == 0 & After_Treatment == 1)
+  subset4 <- data %>% filter(Treated == 0 & After_Treatment == 0)
+  
+  r <- lm(formula = Price ~ Treated + After_Treatment + (Treated * After_Treatment) + (Cases + Trips), data = data)
+  
+  p1 <- mean(predict(r,subset1))
+  p2 <- mean(predict(r,subset2))
+  p3 <- mean(predict(r,subset3))
+  p4 <- mean(predict(r,subset4))
+  
+  estimate <- ((p1 - p2) - (p3 - p4))
+}
+
+DRegression3 <- function(data){
+  return_data <- data %>% lm(formula = Price ~ Treated + After_Treatment + (Treated * After_Treatment) + (Cases + Trips))
+  return(return_data)
+}
+
+
+COd <- (DiD_Regression(PollCO))
+O3d <- (DiD_Regression(PollO3))
+PM10d <- (DiD_Regression(PollPM10))
+PM25d <- (DiD_Regression(PollPM25))
+SO2d <- (DiD_Regression(PollSO2))
+NO2d <- (DiD_Regression(PollNO2))
+
+DiD_Results <- data.frame(Variable = c("CO(ppb)","O3(ppb)","PM10(µg/m3)","PM2.5(µg/m3)","SO2(ppb)","NO2(ppb)"),Difference = c(COd,O3d,PM10d,PM25d,SO2d,NO2d),Significance = c(star_extract2(DRegression1(PollCO)),star_extract2(DRegression1(PollO3)),star_extract2(DRegression1(PollPM10)),star_extract2(DRegression1(PollPM25)),star_extract2(DRegression1(PollSO2)),star_extract2(DRegression1(PollNO2)))) 
+
+Ttd <- (DiD_Regression2(DiD_prep(PollCO)))
+
+DiD_Results2 <- data.frame(Variable = "Trips",Difference = Ttd,Significance = star_extract2(DRegression2(PollCO))) 
+
+Ptd <- (DiD_Regression3(DiD_prep(PollCO)))
+
+DiD_Results3 <- data.frame(Variable = "Gas Price",Difference = Ptd,Significance = star_extract2(DRegression3(PollCO))) 
+```
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+DiD_Regression4 = function(data){
+  subset1 <- data %>% filter(Treated == 1 & After_Treatment == 1)
+  subset2 <- data %>% filter(Treated == 1 & After_Treatment == 0)
+  subset3 <- data %>% filter(Treated == 0 & After_Treatment == 1)
+  subset4 <- data %>% filter(Treated == 0 & After_Treatment == 0)
+  
+  r <- lm(formula = log(Pollutants) ~ Treated + After_Treatment + (Treated * After_Treatment) + (Price + Trips), data = data)
+  
+  p1 <- mean(predict(r,subset1))
+  p2 <- mean(predict(r,subset2))
+  p3 <- mean(predict(r,subset3))
+  p4 <- mean(predict(r,subset4))
+  
+  estimate <- ((p1 - p2) - (p3 - p4))
+}
+
+DRegression4 <- function(data){
+  return_data <- data %>% lm(formula = log(Pollutants) ~ Treated + After_Treatment + (Treated * After_Treatment) + (Price + Trips))
+  return(return_data)
+}
+
+DiD_Regression5 = function(data){
+  subset1 <- data %>% filter(Treated == 1 & After_Treatment == 1)
+  subset2 <- data %>% filter(Treated == 1 & After_Treatment == 0)
+  subset3 <- data %>% filter(Treated == 0 & After_Treatment == 1)
+  subset4 <- data %>% filter(Treated == 0 & After_Treatment == 0)
+  
+  r <- lm(formula = log(Trips) ~ Treated + After_Treatment + (Treated * After_Treatment) + (Cases + Price), data = data)
+  
+  p1 <- mean(predict(r,subset1))
+  p2 <- mean(predict(r,subset2))
+  p3 <- mean(predict(r,subset3))
+  p4 <- mean(predict(r,subset4))
+  
+  estimate <- ((p1 - p2) - (p3 - p4))
+}
+
+DRegression5 <- function(data){
+  return_data <- data %>% lm(formula = log(Trips) ~ Treated + After_Treatment + (Treated * After_Treatment) + (Cases + Price))
+  return(return_data)
+}
+
+DiD_Regression6 = function(data){
+  subset1 <- data %>% filter(Treated == 1 & After_Treatment == 1)
+  subset2 <- data %>% filter(Treated == 1 & After_Treatment == 0)
+  subset3 <- data %>% filter(Treated == 0 & After_Treatment == 1)
+  subset4 <- data %>% filter(Treated == 0 & After_Treatment == 0)
+  
+  r <- lm(formula = log(Price) ~ Treated + After_Treatment + (Treated * After_Treatment) + (Cases + Trips), data = data)
+  
+  p1 <- mean(predict(r,subset1))
+  p2 <- mean(predict(r,subset2))
+  p3 <- mean(predict(r,subset3))
+  p4 <- mean(predict(r,subset4))
+  
+  estimate <- ((p1 - p2) - (p3 - p4))
+}
+
+DRegression6 <- function(data){
+  return_data <- data %>% lm(formula = log(Price) ~ Treated + After_Treatment + (Treated * After_Treatment) + (Cases + Trips))
+  return(return_data)
+}
+
+COd <- (DiD_Regression4(PollCO))
+O3d <- (DiD_Regression4(PollO3))
+PM10d <- (DiD_Regression4(PollPM10))
+PM25d <- (DiD_Regression4(PollPM25))
+SO2d <- (DiD_Regression4(PollSO2))
+NO2d <- (DiD_Regression4(PollNO2))
+
+DiD_Results4 <- data.frame(Variable = c("CO(ppb)","O3(ppb)","PM10(µg/m3)","PM2.5(µg/m3)","SO2(ppb)","NO2(ppb)"),Percent_Difference = c(COd,O3d,PM10d,PM25d,SO2d,NO2d),Significance = c(star_extract2(DRegression4(PollCO)),star_extract2(DRegression4(PollO3)),star_extract2(DRegression4(PollPM10)),star_extract2(DRegression4(PollPM25)),star_extract2(DRegression4(PollSO2)),star_extract2(DRegression4(PollNO2)))) 
+
+Ttd <- (DiD_Regression5(DiD_prep(PollCO)))
+
+DiD_Results5 <- data.frame(Variable = "Trips",Percent_Difference = Ttd ,Significance = star_extract2(DRegression5(PollCO))) 
+
+Ptd <- (DiD_Regression6(DiD_prep(PollCO)))
+
+DiD_Results6 <- data.frame(Variable = "Gas Price",Percent_Difference = Ptd ,Significance = star_extract2(DRegression6(PollCO)))
+
+DiD_Regression_Rural = function(data){
+  subset1 <- data %>% filter(Treated == 1 & After_Treatment == 1)
+  subset2 <- data %>% filter(Treated == 1 & After_Treatment == 0)
+  subset3 <- data %>% filter(Treated == 0 & After_Treatment == 1)
+  subset4 <- data %>% filter(Treated == 0 & After_Treatment == 0)
+  
+  r <- lm(formula = Pollutants ~ Treated + After_Treatment + (Treated * After_Treatment), data = data)
+  
+  p1 <- mean(predict(r,subset1))
+  p2 <- mean(predict(r,subset2))
+  p3 <- mean(predict(r,subset3))
+  p4 <- mean(predict(r,subset4))
+  
+  estimate <- ((p1 - p2) - (p3 - p4))
+}
+
+DRegression_Rural <- function(data){
+  return_data <- data %>% lm(formula = Pollutants ~ Treated + After_Treatment + (Treated * After_Treatment))
+  return(return_data)
+}
+
+COdr <- (DiD_Regression_Rural(PollCOr))
+O3dr <- (DiD_Regression_Rural(PollO3r))
+PM10dr <- (DiD_Regression_Rural(PollPM10r))
+PM25dr <- (DiD_Regression_Rural(PollPM25r))
+SO2dr <- (DiD_Regression_Rural(PollSO2r))
+NO2dr <- (DiD_Regression_Rural(PollNO2r))
+
+DiD_Results_Rural <- data.frame(Variable = c("CO(ppb)","O3(ppb)","PM10(µg/m3)","PM2.5(µg/m3)","SO2(ppb)","NO2(ppb)"),Difference = c(COdr,O3dr,PM10dr,PM25dr,SO2dr,NO2dr),Significance = c(star_extract2(DRegression_Rural(PollCOr)),star_extract2(DRegression_Rural(PollO3r)),star_extract2(DRegression_Rural(PollPM10r)),star_extract2(DRegression_Rural(PollPM25r)),star_extract2(DRegression_Rural(PollSO2r)),star_extract2(DRegression_Rural(PollNO2r)))) 
+
+DiD_Regression_Rural_Log = function(data){
+  subset1 <- data %>% filter(Treated == 1 & After_Treatment == 1)
+  subset2 <- data %>% filter(Treated == 1 & After_Treatment == 0)
+  subset3 <- data %>% filter(Treated == 0 & After_Treatment == 1)
+  subset4 <- data %>% filter(Treated == 0 & After_Treatment == 0)
+  
+  r <- lm(formula = log(Pollutants) ~ Treated + After_Treatment + (Treated * After_Treatment), data = data)
+  
+  p1 <- mean(predict(r,subset1))
+  p2 <- mean(predict(r,subset2))
+  p3 <- mean(predict(r,subset3))
+  p4 <- mean(predict(r,subset4))
+  
+  estimate <- ((p1 - p2) - (p3 - p4))
+}
+
+DRegression_Rural_Log <- function(data){
+  return_data <- data %>% lm(formula = Pollutants ~ Treated + After_Treatment + (Treated * After_Treatment))
+  return(return_data)
+}
+
+COdr <- (DiD_Regression_Rural_Log(PollCOr))
+O3dr <- (DiD_Regression_Rural_Log(PollO3r))
+PM10dr <- (DiD_Regression_Rural_Log(PollPM10r))
+PM25dr <- (DiD_Regression_Rural_Log(PollPM25r))
+SO2dr <- (DiD_Regression_Rural_Log(PollSO2r))
+NO2dr <- (DiD_Regression_Rural_Log(PollNO2r))
+
+DiD_Results_Rural_log <- data.frame(Variable = c("CO(ppb)","O3(ppb)","PM10(µg/m3)","PM2.5(µg/m3)","SO2(ppb)","NO2(ppb)"),Difference = c(COdr,O3dr,PM10dr,PM25dr,SO2dr,NO2dr),Significance = c(star_extract2(DRegression_Rural_Log(PollCOr)),star_extract2(DRegression_Rural_Log(PollO3r)),star_extract2(DRegression_Rural_Log(PollPM10r)),star_extract2(DRegression_Rural_Log(PollPM25r)),star_extract2(DRegression_Rural_Log(PollSO2r)),star_extract2(DRegression_Rural_Log(PollNO2r)))) 
+```
+
+```{r,message = FALSE,warning = FALSE, echo = FALSE}
+COr <- (Regression(Regression_prep(PollCO)))
+O3r <- (Regression(Regression_prep(PollO3)))
+PM10r <- (Regression(Regression_prep(PollPM10)))
+PM25r <- (Regression(Regression_prep(PollPM25)))
+SO2r <- (Regression(Regression_prep(PollSO2)))
+NO2r <- (Regression(Regression_prep(PollNO2)))
+
+COlr <- (LRegression(Regression_prep(PollCO)))
+O3lr <- (LRegression(Regression_prep(PollO3)))
+PM10lr <- (LRegression(Regression_prep(PollPM10)))
+PM25lr <- (LRegression(Regression_prep(PollPM25)))
+SO2lr <- (LRegression(Regression_prep(PollSO2)))
+NO2lr <- (LRegression(Regression_prep(PollNO2)))
+
+COr_stars <- star_extract(summary(COr))
+O3r_stars <- star_extract(summary(O3r))
+PM10r_stars <- star_extract(summary(PM10r))
+PM25r_stars <- star_extract(summary(PM25r))
+SO2r_stars <- star_extract(summary(SO2r))
+NO2r_stars <- star_extract(summary(NO2r))
+
+Regression_Results <- data.frame(CO = COr$coefficients, CO_Signif = COr_stars, O3 = O3r$coefficients, O3_Signif = O3r_stars, PM10 = PM10r$coefficients, PM10_Signif = PM10r_stars, PM2.5 = PM25r$coefficients, PM2.5_Signif = PM25r_stars, SO2 = SO2r$coefficients, SO2_Signif = SO2r_stars, NO2 = NO2r$coefficients, NO2_Signif = NO2r_stars) %>% mutate("Total Change in Pollutants" = (if_else(CO_Signif == "",0,CO)+if_else(O3_Signif == "",0,O3)+if_else(PM10_Signif == "",0,PM10)+if_else(PM2.5_Signif == "",0,PM2.5)+if_else(SO2_Signif == "",0,SO2)+if_else(NO2_Signif == "",0,NO2)))
+
+COlr_stars <- star_extract(summary(COlr))
+O3lr_stars <- star_extract(summary(O3lr))
+PM10lr_stars <- star_extract(summary(PM10lr))
+PM25lr_stars <- star_extract(summary(PM25lr))
+SO2lr_stars <- star_extract(summary(SO2lr))
+NO2lr_stars <- star_extract(summary(NO2lr))
+
+LRegression_Results <- data.frame(CO = COlr$coefficients, CO_Signif = COlr_stars, O3 = O3lr$coefficients, O3_Signif = O3lr_stars, PM10 = PM10lr$coefficients, PM10_Signif = PM10lr_stars, PM2.5 = PM25lr$coefficients, PM2.5_Signif = PM25lr_stars, SO2 = SO2lr$coefficients, SO2_Signif = SO2lr_stars, NO2 = NO2lr$coefficients, NO2_Signif = NO2lr_stars)
+
+PT_Plot <- function(data,type){
+  data %>% mutate(Groups = if_else(After_Treatment == 1 & Year == 20,"Treatment","Control")) %>% ggplot(mapping = aes(x = date, y = Pollutants)) + geom_point(aes(color = Groups)) + geom_vline(xintercept = as_date("2020-01-25"), linetype = "dashed", color = "black") + geom_smooth(method = "loess") + labs(x = "Date", y = paste(type,"Emissions (ppb)"), color = "Groups")
+}
+```
+
+Abstract
+
+  
+
+1 Introduction 
+
+  Air pollution has been an issue humanity has struggled to resolve for centuries. Defined as the contamination of the air due to the presence of harmful substances, air pollution is an issue that can negatively impact animal health and the planet as a whole. In addition to causing numerous health concerns in humans such as respiratory infections and other diseases, air pollution can also damage the environment by reducing growth of crops and increasing susceptibility to diseases. Despite these negative repercussions, human activity has continued to release air pollutants into the atmosphere throughout the years. One of the largest contributors to air pollution is vehicle usage, as harmful emissions are produced and emitted into the atmosphere when operating a vehicle. However, the reliance on vehicles to travel within a city suggests that there will be great difficulty in convincing society to stop the usage of vehicles in favor of a more environmentally friendly alternative. Therefore, attempts to reduce air pollution through limiting vehicle usage should aim to alter factors that influence one's vehicle usage instead. 
+  
+  In January of 2020, Canada received the first reported case of COVID-19. Due to COVID-19 being spread through contact with others, human interaction became limited and people were discouraged from exiting their homes unless necessary. Although this was a difficult time for everyone in the world, these restrictions placed due to the sudden appearance of COVID-19 may have impacted air pollution by discouraging individuals from travelling and therefore reducing vehicle usage. Determining the effect COVID-19 had on air pollution is important as future policies regarding pollution and transportation could utilize this information to further reduce pollutants in the atmosphere. To establish this, Chang, Meyerhoefer, and Yang (2021) studied the effect of COVID-19 on air pollution in the two largest cities in Taiwan. Through their research, they found that there was overall 3-7% increase in air pollution during the COVID-19 lockdown, with an increase of pollution during working days and a decrease during non-working days. This was because although the threat of COVID-19 was present, individuals still needed to commute to work. To limit interaction with others, many chose to use personal vehicles rather than use public transportation such as buses or metro trains. 
+  
+  However, this study was performed using data from Taiwan. As such, the results may not be applicable to Canada. Thus, this paper aims to develop models to estimate the effect of COVID-19 on air pollution in Canada. We will first review the literature and the models used to estimate the effect of COVID-19 on air pollution in Taiwan. Difference-in-difference models based on the previous literature will then be created for the six main pollutants from vehicle emissions to estimate the effect of COVID-19 on air pollution in Canada, as well as the effect on transit usage and gas prices. After looking at the data and comparing estimation results of each of these models, linear regressions will be performed to estimate the individual correlation of each variable on the amount of air pollution and predict future air pollution amounts given a change in certain variables. Furthermore, air pollution in rural areas will be compared to that in urban areas. Finally, all models will be compared and the results of each will be used to estimate the overall effect the COVID-19 restrictions had on air pollution in Canada. 
+
+2 Literature Review
+
+  In the paper *COVID-19 prevention, air pollution and transportation patterns in the absence of a lockdown*, Chang, Meyerhoefer, and Yang investigate the impact that the COVID-19 lockdown had on air quality in the two largest cities in Taiwan, Taipei and New Taipei City. Data was compiled on air quality, confirmed COVID-19 cases, and transportation to conduct a difference-in-difference estimation on the amount of air pollution from local sources. As stated previously, they found an overall 3-7% increase in air pollution, specifically CO, O~3~, SO~2~, PM~10~, and PM~2.5~. The results from their paper demonstrate the importance of public transit and encouraging bicycle usage as this increase came largely from individuals preferring to use their personal vehicles over sharing transportation with others. In addition to estimating the amount of air pollution, they also determine the effect the COVID-19 lockdown had on metro usage and shared-bicycle usage using difference-in-difference estimators. Their paper encourages policymakers to take action and limit the substitution of personal vehicles for public transit to mitigate air pollution and assist society in becoming accustomed to once again interacting with others. 
+  
+__Difference-in-Difference__
+
+  The difference-in-difference estimator is used to estimate the average treatment effect (ATE) of a given treatment by splitting the data into a control group and a treatment group. A regression is performed, and the predicted value of the control group is subtracted from the treatment group to estimate the ATE. Chang, Meyerhoefer, and Yang split their groups based on date, with the pre-treatment period being January 1 - January 21 and the post-treatment period being January 22 - March 31, with observations ranging from 2017-2019. An observation is considered treated if there was a confirmed case of COVID-19 on that day. Two models were implemented for their difference-in-difference estimator. Due to how their data showed that outcome variables were right-skewed, they implemented the following model:
+  
+  log(y~1ijt~)= α~1~+γ~1~⋅COVID~jt~+β~1~′X~1ijt~+υ~j~+t~m~+t~y~+ε~1ijt~
+  
+  Where y refers to the outcome variable (air pollution, metro usage, shared-bicycle usage) for data station i in city j at time t, and COVID is either a discrete or continuous variable of confirmed COVID-19 cases in city j at time t. X is a vector of other explanatory variables, v is fixed effects for the city, and t~m~ and t~y~ are month and year respectively. The coefficient γ measures the effect COVID-19 had on the outcome variable in percentage terms. 
+  
+  However, the traffic data they received showed some zero values. As such, they also implemented the following difference-in-difference model:
+  
+  y~2it~= α~2~+γ~2~⋅COVID~t~+β~2~′X~2it~+t~m~+t~y~+ε~2it~
+  
+  where y refers to the amount of traffic flow detected at station i at time t. All other variables are the same as in the previous model, however γ now measures the effect of COVID-19 on how many 100s of vehicles travel between the two cities per hour. Both models estimate γ by comparing differences in the outcome variable before and after the first reported case of COVID-19.
+
+3 Methodology: 
+
+a) Difference-in-difference Estimator
+
+  A difference-in-difference estimator uses a control group and a treatment group to estimate the average treatment effect (ATE). For the model in this paper, an observation will be considered treated if a positive number of COVID-19 cases were reported that day. The pre-treatment period will be January 1 - January 25, and the post-treatment period will be January 26 - December 31 because the first recorded case of COVID-19 in Canada occurred on January 26, 2020. Furthermore, observations will be used with data from 2018-2020. This model will then be used to estimate air pollution, number of transit trips, and gas price in a day. 4 assumptions are required to use the difference-in-difference estimator:
+  
+  1. Stable Unit Treatment Value Assumption (SUTVA)
+    Assumption 1 assumes that the outcome of one observation is independent from the outcome of others. This is satisfied as the pollution, number of transit trips, and gas prices of one day are independent from other days.
+
+  2. Conditional Independence
+    Assumption 2 assumes that the assignment of treatment was not assigned based on the outcome. This is satisfied as whether a case of COVID-19 was reported or not in a day was not determined by the air pollution, number of transit trips, or gas prices for that day.
+
+  3. Common Support
+    Assumption 3 assumes that the probability of an observation being treated is positive given any value of the confounder variables. This is satisfied as none of the confounder variables change the probability of a day having a reported COVID-19 case. 
+
+  4. Parallel Trends
+    Assumption 4 assumes that if the treatment group had not received treatment, then it would have followed a similar trend to that of the control group. This is impossible to prove, but we can provide a counter-factual by looking at the trends prior to the treatment period. By observing this, we can see that 2020 begins with a similar trend to the previous years before deviating. For example, the amount of CO emissions in 2018 and 2019 can be observed to dip, forming a "U" shape over the course of each year. As such, the beginning of each year sees a majority of points forming a peak but beginning to trend downwards. A similar trend can be seen in the beginning of 2020. 
+    
+```{r, message = FALSE, warning = FALSE}
+PT_Plot(PollCO,"CO")
+PT_Plot(PollO3,"O3")
+PT_Plot(PollPM10,"PM10")
+PT_Plot(PollPM25,"PM2.5")
+PT_Plot(PollSO2,"SO2")
+PT_Plot(PollNO2,"NO2")
+```
+    
+  In the difference-in-difference models for this paper, the following two models were used:
+  
+  Y~1~ = β~1,0~ + τD~i~ + λD~t~ + δ (D~i~ × D~t~) + β~1,1~X + u
+  
+  log(Y~2~) = β~2,0~ + τD~i~ + λD~t~ + δ (D~i~ × D~t~) + β~2,1~X + u
+  
+  where D~i~ and D~t~ are dummy variables representing treated (1) or not treated (0) and post-treatment (1) or pre-treatment(0), X includes other variables such as number of reported cases, gasoline price, and number of transit trips depending on which outcome variable is being estimated, and u is the error term. Y~1~ represents the change in number of pollutants, gasoline price, or number of transit trips while Y~2~ represents the percent change. Every variation of the model is put into a function similar to the one below, with the regression formula changing for each. The function is used to estimate the ATE, represented by the δ coefficient. 
+  
+```{r, eval = FALSE}
+DiD_Regression = function(data){
+  subset1 <- data %>% filter(Treated == 1 & After_Treatment == 1)
+  subset2 <- data %>% filter(Treated == 1 & After_Treatment == 0)
+  subset3 <- data %>% filter(Treated == 0 & After_Treatment == 1)
+  subset4 <- data %>% filter(Treated == 0 & After_Treatment == 0)
+  
+  r <- lm(formula = Pollutants ~ Treated + After_Treatment + (Treated * After_Treatment) + (Price + Trips), data = data)
+  
+  p1 <- mean(predict(r,subset1))
+  p2 <- mean(predict(r,subset2))
+  p3 <- mean(predict(r,subset3))
+  p4 <- mean(predict(r,subset4))
+  
+  estimate <- ((p1 - p2) - (p3 - p4))
+}
+```
+
+Difference-in-difference is a useful technique to use when needing to compare changes in outcome over a period of time from a treatment, and is capable of considering impacts from other potential differences other than the treatment by subtracting out this difference. 
+
+b) Linear Regression
+
+  A linear regression model is used to determine the marginal effect of independent variables on a dependent variable. 5 Assumptions must be met to use a linear regression model.
+  
+  1. Linearity
+    Assumption 1 assumes that the model must be linear in the parameters. Meaning it follows the model:
+    
+  Y~i~ = X'~i~β + u~i~
+    
+  where Y~i~ is the dependent variable, X~i~ is the vector of independent/explanatory variables, β is the vector of parameters of interest, and u~i~ is the error term. This will be satisfied through the models displayed later.
+    
+  2. Independent and Identically Distributed Sample (i.i.d. sample)
+    Assumption 2 assumes that the sample is distributed independently from one another and identically. This is satisfied as the sample is distributed based on date and each observation is independent from each other.
+  
+  3. Exogeneity 
+    Assumption 3 assumes that the error term is independent from X. This cannot be tested, but must be assumed to ensure consistency and unbiasedness.
+  
+  4. No Collinearity
+    Assumption 4 assumes that explanatory variables cannot be expressed using a linear combination of each other, as this would mean using those two variables is equivalent to using the same information. 
+  
+  5. Homoskedasticity 
+    Assumption 5 assumes that the variance of the error term is independent from x. This is important as satisfying this assumption allows for the regression to have asymptotic normality and be the best linear unbiased estimator (BLUE). This can be proved by plotting the residuals of the regression and observing the points. The points spreading into a fan shape indicate heteroskedasticity. Below are two plots from the regressions performed on the CO pollutant. We do not observe a fan shape distribution in the residuals, so we can assume homoskedasticity. 
+    
+```{r,message = FALSE, warning = FALSE}
+plot(resid(COr))
+plot(resid(COlr))
+```
+  
+  Regressions were used to estimate the amount of carbon monoxide (CO), ozone pollutants (O3), particular matter with concentration under 10 or 2.5 micrograms per cubic meter of air (PM10, PM2.5), sulfur dioxide (SO2), and nitrogen dioxide (NO2) emitted, as these are the main pollutants emitted from vehicle use. Two regression models were used to estimate each pollutant:
+  
+  Y~i~ = X'~i~β + u~i~
+  
+  log(Y~i~) = X'~i~β + u~i~
+  
+  Both models estimate the coefficients in the vector β, with the first model estimating the marginal effect and the second estimating the effect in percentage terms. However, due to constraints from the available data, regressions were performed using months for observations instead of dates. The functions used can be found below: 
+  
+```{r, eval = FALSE}
+Regression <- function(data){
+  return_data <- data %>% lm(formula = Pollutants ~ Cases + Price + Trips)
+  return(return_data)
+}
+
+LRegression <- function(data){
+  return_data <- data %>% lm(formula = log(Pollutants) ~ Cases + Price + Trips)
+  return(return_data)
+}
+```
+
+4 Data Description
+
+  Numerous data sources were used to collect data for this paper. COVID-19 case data was retrieved from the World Health Organization's (WHO) website, in which they compile the number of reported cases and deaths from COVID-19 daily. From this data, we took the number of reported COVID-19 cases per day as a variable. Emissions data for all pollutants included in this paper were retrieved from Canada's Environmental Statistics website, where they utilize the National Air Pollution Surveillance (NAPS) system to compile data on the amount of emissions for each pollutant by the hour. The amount of emissions for each pollutant, measured in parts per billion (ppm), were taken as the dependent variable. Gasoline prices and transit data was retrieved from Statistics Canada through a census and a survey respectively. Unfortunately, only monthly data was available for these data sets. Therefore, gasoline price and number of transit trips per month were taken as variables, and some values were repeated to fit into the combined data set. While this does not effect the difference-in-difference estimator as much because the estimation of the ATE subtracts out the coefficients of other variables, this does impact the outcome of the linear regressions. To resolve this issue, the regressions were performed using monthly averages rather than daily data. Furthermore, to compare pollution in rural areas with pollution in urban areas, a list of cities in Canada was retrieved from the World Population Review website. There are many definitions for what constitutes a rural area in Canada, but for this paper we will be assuming that any city that is not on the provided list, that is any city with a population less than 10,000, will be considered rural. 
+  
+  To better estimate the lock down's effect on vehicle usage, gathering data on traffic flow in Canada would have been excellent. However, this was not possible as Canada does not have stations to monitor traffic data like those present in Taiwan. As such, that data is missing from the models in this paper.
+  
+  From all data sets, data was gathered from January 2018 - December 2020 and manipulated such that all data sets could be combined. The first 6 observations of the data sets used for the difference-in-difference estimator and the linear regression are provided below:
+  
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+PollCO
+Regression_prep(PollCO)
+```
+  
+  Below are the functions used to manipulate each data set:
+  
+```{r, eval = FALSE}
+CovidData <- read.csv("WHO-COVID-19-global-data.csv") %>% filter(Country == "Canada") %>% mutate(date = as_date(ï..Date_reported)) %>% select(date,Country,Cumulative_cases)
+
+Can_Pop <- read.csv("Canadian_Cities.csv")
+Cities <- Can_Pop$city
+
+data_prep <- function(data){
+  data[is.na(data)] <- 0
+  data[data == -999] <- 0
+  
+  return_data <- data %>% mutate(date = mdy(Date..Date)) %>% mutate(Daily_Sum = H01..H01 + H02..H02 + H03..H03 + H04..H04 + H05..H05 + H06..H06 + H07..H07 + H08..H08 + H09..H09 + H10..H10 + H11..H11 + H12..H12 + H13..H13 + H14..H14 + H15..H15 + H16..H16 + H17..H17 + H18..H18 + H19..H19 + H20..H20 + H21..H21 + H22..H22 + H23..H23 + H24..H24) %>% mutate(Cumulative_cases = 0) %>% group_by(date) %>% summarise(Pollutants = sum(Daily_Sum),Cases = mean(Cumulative_cases),) %>% mutate(Treated = 0) %>% mutate(Year = substring(year(date),3,4)) %>% mutate(Month = month(date)) %>% mutate(Day = day(date)) %>% mutate(After_Treatment = if_else(Month==1 & Day<=25,0,1))
+  
+  return_data[is.na(return_data)] <- 0
+  return(return_data)
+}
+
+data_prep2 <- function(data){
+  data[is.na(data)] <- 0
+  data[data == -999] <- 0
+  
+  return_data <- data %>% mutate(date = mdy(Date..Date)) %>% mutate(Daily_Sum = H01..H01 + H02..H02 + H03..H03 + H04..H04 + H05..H05 + H06..H06 + H07..H07 + H08..H08 + H09..H09 + H10..H10 + H11..H11 + H12..H12 + H13..H13 + H14..H14 + H15..H15 + H16..H16 + H17..H17 + H18..H18 + H19..H19 + H20..H20 + H21..H21 + H22..H22 + H23..H23 + H24..H24) %>% left_join(CovidData, by = "date") %>% group_by(date) %>% summarise(Pollutants = sum(Daily_Sum),Cases = mean(Cumulative_cases)) %>% mutate(Treated = 1) %>% mutate(Year = substring(year(date),3,4)) %>% mutate(Month = month(date)) %>% mutate(Day = day(date)) %>% mutate(After_Treatment = if_else(Month==1 & Day<=25,0,1))
+  
+  return_data[is.na(return_data)] <- 0
+  return(return_data)
+}
+
+PollCO_2018 <- data_prep(urban(read.csv("CO_2018(Edited).csv"))) %>% mutate(Rural = FALSE)
+
+PollCO_2020 <- data_prep2(urban(read.csv("CO_2020(Edited).csv"))) %>% mutate(Rural = FALSE)
+
+PollCO_2018r <- data_prep(rural(read.csv("CO_2018(Edited).csv"))) %>% mutate(Rural = TRUE)
+
+PollCO_2020r <- data_prep2(rural(read.csv("CO_2020(Edited).csv"))) %>% mutate(Rural = TRUE)
+
+data_prep3 <- function(data){
+  month_list <- c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+  
+  return_data <- data %>% mutate(Date = ï..Date) %>% mutate(Year = substring(Date,1,2)) %>% mutate(Month = match(substring(Date,4,6),month_list))
+}
+
+month_length <- c(31,28,31,30,31,30,31,31,30,31,30,31)
+TransitStats <- data_prep3(read.csv("Urban-Transit-Stats(Edited).csv")) %>% mutate(Trips = Total.passenger.trips/if_else(Month == 2 & Year == 20,29,month_length[Month])) %>% select(Date,Year,Month,Trips)
+GasPrices <- data_prep3(read.csv("Gasoline-Price-Stats(Edited).csv")) %>% mutate(Price = Canada) %>% select(Date,Year,Month,Price)
+
+data_prep4 <- function(data){
+  
+  return_data <- data %>% left_join(TransitStats,by = c('Year' = 'Year','Month' = 'Month')) %>% left_join(GasPrices,by = c('Year' = 'Year','Month' = 'Month')) 
+}
+
+PollCO <- data_prep4(rbind(PollCO_2018,PollCO_2019,PollCO_2020))
+
+Regression_prep <- function(data){
+  return_data <- data %>% group_by(Month,Year) %>% summarise(po = mean(Pollutants),c = mean(Cases),t = mean(Trips), pr = mean(Price))
+  
+  colnames(return_data) <- c("Month","Year","Pollutants","Cases","Trips","Price")
+  
+  return(return_data)
+}
+
+COr <- Regression(Regression_prep(PollCO))
+```
+
+  Only the CO data set manipulation is displayed above, as the data set for the other 5 pollutants follow the same procedure. 
+
+5 Estimation results 
+
+  Using the models described above, the results can be estimated and compared. As mentioned previously, the difference-in-difference model is an useful model that allows for an estimation of the average treatment effect (ATE). However, although the ATE can be estimated, the significance of the estimation needs to be considered as well. This is represented by the number of stars in the significance column in the following results:
+  
+```{r,echo = FALSE, message = FALSE, warning = FALSE}
+DiD_linear_results <- rbind(DiD_Results,DiD_Results2,DiD_Results3)
+DiD_log_results <- rbind(DiD_Results4,DiD_Results5,DiD_Results6)
+DiD_linear_results
+DiD_log_results
+DiD_Results_Rural
+DiD_Results_Rural_log
+```
+
+  From these results, we can observe that the while the estimation for the ATE on number of transit trips and gas prices was significant, only a few pollutants saw significant estimations. In particular, the linear regression model produced significant estimations in CO and NO2, while the logarithmic regression model produced significant estimation in CO, NO2, and PM10. As such, it is not appropriate to interpret the results for those pollutants. However, we can look at the statistically significant estimates to determine the overall effect of the lock down. Looking at the estimates from the logarithmic regression model, we can observe an overall increase in the amount of pollutants, with the percentage change in CO and NO2 being very close, and the percentage change in PM10 being positive, for a total significant percentage change of around 0.12% after the treatment. However, the actual change in NO2 is significantly larger compared to that of CO, with a change almost 100 times greater. This suggests that the treatment, or the introduction of confirmed COVID-19 cases in Canada, did not impact a majority of the pollutants included in the model. 
+  
+  We can also observe the significant impact the treatment had on number of transit trips and gas prices. Looking at the impact on gas prices, we can observe a negative percentage decrease of around 0.24% and a decrease of around 25 cents per Litre. We can also observe the number of trips decreasing by 3 trips per month during the post-treatment period. Furthermore, the percentage change in the number of trips is estimated to decrease by 1.06%. Both of these results suggest that the COVID-19 lock down caused gas prices to decrease while also discouraging the use of public transit. However, unlike the results found by Chang, Meyerhoefer, and Yang in Taiwan, the average number of pollutants in Canada decreased during the pos-treatment period. This could be because although gas prices were lowered and the usage of public transit decreased, the overall number of individuals travelling outside their homes was low. One possible reason for this is because many companies and organizations began to allow employees to work from home, removing the need for them to use their vehicles to go to work. 
+
+  We can then compare these results to the results of the linear regressions:
+
+Linear:
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+Regression_Results[1:4]
+Regression_Results[5:8]
+Regression_Results[9:12]
+Regression_Results[13]
+```
+
+Logarithmic:
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+LRegression_Results[1:4]
+LRegression_Results[5:8]
+LRegression_Results[9:12]
+```
+  
+  From these regressions, we can observe the significance each variable has on each pollutant. Overall, the significance levels are similar to what was seen in the difference-in-difference regression. Significance levels for CO and NO2 are high are the linear regression, and significance levels for CO, PM10, and NO2 are high in the logarithmic regression. However, there is a slight significance level in the impact of number of COVID-19 cases and number of transit trips on the emission of O3 and SO2 when estimating using these regressions. Considering the significance levels, the estimated coefficients show that all variables have a negative correlation with air pollution. 
+  
+  Both the difference-in-difference model and the linear regression model have their benefits, and by utilizing both we can observe both the overall impact the COVID-19 lockdown had and the impact other variables had on air pollution. The results above have demonstrated that an increase in the number of reported COVID-19 cases, number of transit trips, or gas prices can decrease the amount of air pollution. This is because an increase in the number of COVID-19 cases or gas prices discourages individuals from frequently operating their vehicle or exiting their homes. Furthermore, an increase in the number of transit trips suggests that there are more individuals willing to share a vehicle with others, reducing air pollution by reducing the total number of vehicles on the road. In addition, the results also demonstrate a lack of impact from the treatment. In other words, the lock down and how society reacted to the knowledge that COVID-19 had reached Canada did not significantly impact air pollution. However, total air pollution still decreased during the lock down, perhaps due to other variables such as the increase in online employment and resulting reduction in traffic offsetting the effect of both gas prices and number of transit trips decreasing. Overall, both models provided valuable information regarding how the arrival of COVID-19 in Canada impacted air pollution, but from the results it is clear that the linear regression model provided more statistically significant results. As a result, that model is capable of providing more information and is therefore a better fit for the data in this paper.
+  
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+Rural_Emissions
+
+RegressionR1 <- function(data){
+  return_data <- data %>% lm(formula = Pollutants ~ Cases)
+  return(return_data)
+}
+
+RegressionR2 <- function(data){
+  return_data <- data %>% lm(formula = log(Pollutants) ~ Cases)
+  return(return_data)
+}
+
+COr <- (RegressionR1(PollCOr))
+O3r <- (RegressionR1((PollO3r)))
+PM10r <- (RegressionR1((PollPM10r)))
+PM25r <- (RegressionR1((PollPM25r)))
+SO2r <- (RegressionR1((PollSO2r)))
+NO2r <- (RegressionR1((PollNO2r)))
+
+COlr <- (RegressionR2(PollCOr))
+O3lr <- (RegressionR2(PollO3r))
+PM10lr <- (RegressionR2(PollPM10r))
+PM25lr <- (RegressionR2(PollPM25r))
+SO2lr <- (RegressionR2(PollSO2r))
+NO2lr <- (RegressionR2(PollNO2r))
+          
+COr_stars <- star_extract(summary(COr))
+O3r_stars <- star_extract(summary(O3r))
+PM10r_stars <- star_extract(summary(PM10r))
+PM25r_stars <- star_extract(summary(PM25r))
+SO2r_stars <- star_extract(summary(SO2r))
+NO2r_stars <- star_extract(summary(NO2r))
+
+Regression_Results <- data.frame(CO = COr$coefficients, CO_Signif = COr_stars, O3 = O3r$coefficients, O3_Signif = O3r_stars, PM10 = PM10r$coefficients, PM10_Signif = PM10r_stars, PM2.5 = PM25r$coefficients, PM2.5_Signif = PM25r_stars, SO2 = SO2r$coefficients, SO2_Signif = SO2r_stars, NO2 = NO2r$coefficients, NO2_Signif = NO2r_stars) %>% mutate("Total Change in Pollutants" = (if_else(CO_Signif == "",0,CO)+if_else(O3_Signif == "",0,O3)+if_else(PM10_Signif == "",0,PM10)+if_else(PM2.5_Signif == "",0,PM2.5)+if_else(SO2_Signif == "",0,SO2)+if_else(NO2_Signif == "",0,NO2)))
+
+COlr_stars <- star_extract(summary(COlr))
+O3lr_stars <- star_extract(summary(O3lr))
+PM10lr_stars <- star_extract(summary(PM10lr))
+PM25lr_stars <- star_extract(summary(PM25lr))
+SO2lr_stars <- star_extract(summary(SO2lr))
+NO2lr_stars <- star_extract(summary(NO2lr))
+
+LRegression_Results <- data.frame(CO = COlr$coefficients, CO_Signif = COlr_stars, O3 = O3lr$coefficients, O3_Signif = O3lr_stars, PM10 = PM10lr$coefficients, PM10_Signif = PM10lr_stars, PM2.5 = PM25lr$coefficients, PM2.5_Signif = PM25lr_stars, SO2 = SO2lr$coefficients, SO2_Signif = SO2lr_stars, NO2 = NO2lr$coefficients, NO2_Signif = NO2lr_stars)
+
+Regression_Results[1:4]
+Regression_Results[5:8]
+Regression_Results[9:12]
+Regression_Results[13]
+LRegression_Results[1:4]
+LRegression_Results[5:8]
+LRegression_Results[9:12]
+```
+  
+This section shows the results. You have to explain the dierent regressions run, and results are typically shown in a table. Rstudio produces nice regression tables for LaTex with the stargazer package. You can also make a table by hand with Insert -> Table. You choose the number of rows and columns and a menu at the bottom will allow you to add/delete rows and columns, add/erase borders, etc You can also discuss the results in this section. 
+
+6 Conclusion 
+This section concludes by summarizing what was done in the paper, explaining the results, and providing some thoughts on future work. What could you not do that could be done in the future? Other methods? Other data? 
+
+References 
+
+Chang, H.H., Meyerhoefer, C.D., & Yang, F.A. (2021). Covid-19 prevention, air pollution and transportation patterns in the absence of a lockdown. Journal of Environmental Management. 298(2021).https://doi.org/10.1016/j.jenvman.2021.113522
+
+CO_2018.(2018). National Air Pollution Surveillance (NAPS) Program. Retrieved from: https://data-donnees.ec.gc.ca/data/air/monitor/national-air-pollution-surveillance-naps-program/Data-Donnees/2018/ContinuousData-DonneesContinu/HourlyData-DonneesHoraires/?lang=en
+
+CO_2019.(2019). National Air Pollution Surveillance (NAPS) Program. Retrieved from: https://data-donnees.ec.gc.ca/data/air/monitor/national-air-pollution-surveillance-naps-program/Data-Donnees/2019/ContinuousData-DonneesContinu/HourlyData-DonneesHoraires/?lang=en
+
+CO_2020.(2020). National Air Pollution Surveillance (NAPS) Program. Retrieved from: https://data-donnees.ec.gc.ca/data/air/monitor/national-air-pollution-surveillance-naps-program/Data-Donnees/2020/ContinuousData-DonneesContinu/HourlyData-DonneesHoraires/?lang=en
+
+Daily cases and deaths by data reported to WHO. (n.d.). World Health Organization. Retrieved from: https://covid19.who.int/data
+
+Monthly average retail prices for gasoline and fuel oil, by geography. (2022, November 16). Statistics Canada. Retrieved from: https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000101&pickMembers%5B0%5D=2.2&cubeTimeFrame.startMonth=01&cubeTimeFrame.startYear=2006&cubeTimeFrame.endMonth=09&cubeTimeFrame.endYear=2022&referencePeriods=20060101%2C20220901
+
+NO2_2018.(2018). National Air Pollution Surveillance (NAPS) Program. Retrieved from: https://data-donnees.ec.gc.ca/data/air/monitor/national-air-pollution-surveillance-naps-program/Data-Donnees/2018/ContinuousData-DonneesContinu/HourlyData-DonneesHoraires/?lang=en
+
+NO2_2019.(2019). National Air Pollution Surveillance (NAPS) Program. Retrieved from: https://data-donnees.ec.gc.ca/data/air/monitor/national-air-pollution-surveillance-naps-program/Data-Donnees/2019/ContinuousData-DonneesContinu/HourlyData-DonneesHoraires/?lang=en
+
+NO2_2020.(2020). National Air Pollution Surveillance (NAPS) Program. Retrieved from: https://data-donnees.ec.gc.ca/data/air/monitor/national-air-pollution-surveillance-naps-program/Data-Donnees/2020/ContinuousData-DonneesContinu/HourlyData-DonneesHoraires/?lang=en
+
+O3_2018.(2018). National Air Pollution Surveillance (NAPS) Program. Retrieved from: https://data-donnees.ec.gc.ca/data/air/monitor/national-air-pollution-surveillance-naps-program/Data-Donnees/2018/ContinuousData-DonneesContinu/HourlyData-DonneesHoraires/?lang=en
+
+O3_2019.(2019). National Air Pollution Surveillance (NAPS) Program. Retrieved from: https://data-donnees.ec.gc.ca/data/air/monitor/national-air-pollution-surveillance-naps-program/Data-Donnees/2019/ContinuousData-DonneesContinu/HourlyData-DonneesHoraires/?lang=en
+
+O3_2020.(2020). National Air Pollution Surveillance (NAPS) Program. Retrieved from: https://data-donnees.ec.gc.ca/data/air/monitor/national-air-pollution-surveillance-naps-program/Data-Donnees/2020/ContinuousData-DonneesContinu/HourlyData-DonneesHoraires/?lang=en
+
+Passenger bus and urban transit statistics, by the North American Industry Classification System (NAICS). (2022, November 21). Statistics Canada. Retreived from: https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=2310025101&pickMembers%5B0%5D=2.1&cubeTimeFrame.startMonth=01&cubeTimeFrame.startYear=2017&cubeTimeFrame.endMonth=12&cubeTimeFrame.endYear=2022&referencePeriods=20170101%2C20221201
+
+PM10_2018.(2018). National Air Pollution Surveillance (NAPS) Program. Retrieved from: https://data-donnees.ec.gc.ca/data/air/monitor/national-air-pollution-surveillance-naps-program/Data-Donnees/2018/ContinuousData-DonneesContinu/HourlyData-DonneesHoraires/?lang=en
+
+PM10_2019.(2019). National Air Pollution Surveillance (NAPS) Program. Retrieved from: https://data-donnees.ec.gc.ca/data/air/monitor/national-air-pollution-surveillance-naps-program/Data-Donnees/2019/ContinuousData-DonneesContinu/HourlyData-DonneesHoraires/?lang=en
+
+PM10_2020.(2020). National Air Pollution Surveillance (NAPS) Program. Retrieved from: https://data-donnees.ec.gc.ca/data/air/monitor/national-air-pollution-surveillance-naps-program/Data-Donnees/2020/ContinuousData-DonneesContinu/HourlyData-DonneesHoraires/?lang=en
+
+PM25_2018.(2018). National Air Pollution Surveillance (NAPS) Program. Retrieved from: https://data-donnees.ec.gc.ca/data/air/monitor/national-air-pollution-surveillance-naps-program/Data-Donnees/2018/ContinuousData-DonneesContinu/HourlyData-DonneesHoraires/?lang=en
+
+PM25_2019.(2019). National Air Pollution Surveillance (NAPS) Program. Retrieved from: https://data-donnees.ec.gc.ca/data/air/monitor/national-air-pollution-surveillance-naps-program/Data-Donnees/2019/ContinuousData-DonneesContinu/HourlyData-DonneesHoraires/?lang=en
+
+PM25_2020.(2020). National Air Pollution Surveillance (NAPS) Program. Retrieved from: https://data-donnees.ec.gc.ca/data/air/monitor/national-air-pollution-surveillance-naps-program/Data-Donnees/2020/ContinuousData-DonneesContinu/HourlyData-DonneesHoraires/?lang=en
+
+Population of cities in Canada. (2022). Retrieved from: https://worldpopulationreview.com/countries/cities/canada
+
+SO2_2018.(2018). National Air Pollution Surveillance (NAPS) Program. Retrieved from: https://data-donnees.ec.gc.ca/data/air/monitor/national-air-pollution-surveillance-naps-program/Data-Donnees/2018/ContinuousData-DonneesContinu/HourlyData-DonneesHoraires/?lang=en
+
+SO2_2019.(2019). National Air Pollution Surveillance (NAPS) Program. Retrieved from: https://data-donnees.ec.gc.ca/data/air/monitor/national-air-pollution-surveillance-naps-program/Data-Donnees/2019/ContinuousData-DonneesContinu/HourlyData-DonneesHoraires/?lang=en
+
+SO2_2020.(2020). National Air Pollution Surveillance (NAPS) Program. Retrieved from: https://data-donnees.ec.gc.ca/data/air/monitor/national-air-pollution-surveillance-naps-program/Data-Donnees/2020/ContinuousData-DonneesContinu/HourlyData-DonneesHoraires/?lang=en
+
+7 Appendix 
+```{r,echo = FALSE, message = FALSE, warning = FALSE}
+PollCOr %>% ggplot(mapping = aes(x = date, y = Pollutants)) + geom_point() + facet_wrap(~Rural, labeller = labeller(Rural = c("FALSE" = "Urban", "TRUE" = "Rural"))) + labs(title = "CO Emissions (Non-Rural vs Rural)", x = "Date", y = "CO Emissions (ppb)")
+PollO3r %>% ggplot(mapping = aes(x = date, y = Pollutants)) + geom_point() + facet_wrap(~Rural, labeller = labeller(Rural = c("FALSE" = "Urban", "TRUE" = "Rural"))) + labs(title = "CO Emissions (Non-Rural vs Rural)", x = "Date", y = "O3 Emissions (ppb)")
+PollPM10r %>% ggplot(mapping = aes(x = date, y = Pollutants)) + geom_point() + facet_wrap(~Rural, labeller = labeller(Rural = c("FALSE" = "Urban", "TRUE" = "Rural"))) + labs(title = "CO Emissions (Non-Rural vs Rural)", x = "Date", y = "PM10 Emissions (ppb)")
+PollPM25r %>% ggplot(mapping = aes(x = date, y = Pollutants)) + geom_point() + facet_wrap(~Rural, labeller = labeller(Rural = c("FALSE" = "Urban", "TRUE" = "Rural"))) + labs(title = "CO Emissions (Non-Rural vs Rural)", x = "Date", y = "PM2.5 Emissions (ppb)")
+PollSO2r %>% ggplot(mapping = aes(x = date, y = Pollutants)) + geom_point() + facet_wrap(~Rural, labeller = labeller(Rural = c("FALSE" = "Urban", "TRUE" = "Rural"))) + labs(title = "CO Emissions (Non-Rural vs Rural)", x = "Date", y = "SO2 Emissions (ppb)")
+PollNO2r %>% ggplot(mapping = aes(x = date, y = Pollutants)) + geom_point() + facet_wrap(~Rural, labeller = labeller(Rural = c("FALSE" = "Urban", "TRUE" = "Rural"))) + labs(title = "CO Emissions (Non-Rural vs Rural)", x = "Date", y = "NO2 Emissions (ppb)")
+```
+
+The appendix gathers additional material that was not essential for the paper, like additional tables/results. 
+
